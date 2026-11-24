@@ -1,0 +1,23 @@
+ # Files named `*_test.repro` are test code: every occurrence in this file has
+ # the Test role.
+ definition TestArea().
+#           ^^^^^^^^^^^ definition test shapes_test.repro/TestArea().
+#                       documentation
+#                       > signature of TestArea().
+ reference area().
+#          ^^^^^^^ reference test shapes.repro/area().
+ reference forward_definition fixture#
+#                             ^^^^^^^^ forward_definition test shapes_test.repro/fixture#
+ definition fixture# implements Circle#
+#           ^^^^^^^^ definition test shapes_test.repro/fixture#
+#                    documentation
+#                    > signature of fixture#
+#                    relationship shapes.repro/Circle# implementation
+#                               ^^^^^^^ reference test shapes.repro/Circle#
+ definition local helper
+#           ^^^^^^^^^^^^ definition test local helper
+#                        documentation
+#                        > signature of helper
+ reference local helper
+#          ^^^^^^^^^^^^ reference test local helper
+ 

@@ -1,6 +1,7 @@
 package repro
 
 import (
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -56,29 +57,40 @@ func (s *reproSourceFile) symbols() []*scip.SymbolInformation {
 
 func (s *reproSourceFile) occurrences() []*scip.Occurrence {
 	var result []*scip.Occurrence
+	fileRoles := s.fileRoles()
 	emit := func(rel relationships) {
 		for _, ident := range rel.identifiers() {
 			if ident == nil {
 				continue
 			}
-			result = append(result, ident.occurrence(scip.SymbolRole_UnspecifiedSymbolRole))
+			result = append(result, ident.occurrence(fileRoles))
 		}
 	}
 	for _, def := range s.definitions {
-		result = append(result, def.name.occurrence(scip.SymbolRole_Definition))
+		result = append(result, def.name.occurrence(scip.SymbolRole_Definition|fileRoles))
 		emit(def.relations)
 	}
 	for _, rel := range s.relationships {
 		emit(rel.relations)
 	}
 	for _, ref := range s.references {
-		role := scip.SymbolRole_UnspecifiedSymbolRole
+		role := fileRoles
 		if ref.isForwardDef {
-			role = scip.SymbolRole_ForwardDefinition
+			role |= scip.SymbolRole_ForwardDefinition
 		}
 		result = append(result, ref.name.occurrence(role))
 	}
 	return result
+}
+
+// fileRoles returns the roles shared by every occurrence in the file. Files
+// named `*_test.repro` are test code, like `*_test.go` files in Go, so their
+// occurrences have SymbolRole.Test.
+func (s *reproSourceFile) fileRoles() scip.SymbolRole {
+	if strings.HasSuffix(filepath.Base(s.Source.RelativePath), "_test.repro") {
+		return scip.SymbolRole_Test
+	}
+	return scip.SymbolRole_UnspecifiedSymbolRole
 }
 
 func (r *relationships) toSCIP() []*scip.Relationship {

@@ -1,0 +1,8 @@
+# Files named `*_test.repro` are test code: every occurrence in this file has
+# the Test role.
+definition TestArea().
+reference area().
+reference forward_definition fixture#
+definition fixture# implements Circle#
+definition local helper
+reference local helper

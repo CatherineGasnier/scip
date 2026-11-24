@@ -1,0 +1,4 @@
+# Production code: no occurrence has the Test role.
+definition area().
+definition Circle#
+reference area().

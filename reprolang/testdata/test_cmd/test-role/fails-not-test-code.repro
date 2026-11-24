@@ -1,0 +1,2 @@
+definition hello().
+#          ^ definition test reprolang repro_manager test-role 1.0.0 fails-not-test-code.repro/hello().

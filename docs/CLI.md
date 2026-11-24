@@ -92,7 +92,9 @@ DESCRIPTION:
    The snapshot subcommand generates snapshot files which
    can be use for inspecting the output of an index in a
    visual way. Occurrences are marked with caret signs (^)
-   and symbol information.
+   and symbol information. Occurrences in test code (the Test
+   symbol role) have 'test' after their role, for example
+   'definition test'.
 
    For testing a SCIP indexer, you can either use this subcommand
    along with 'git diff' or equivalent, or you can use the dedicated

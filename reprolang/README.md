@@ -42,6 +42,12 @@ definition dog# implements animal#
 definition Cat# type_defines animal#
 ```
 
+## Test code
+
+Every occurrence in a file whose name ends in `_test.repro` has the
+`SymbolRole.Test` role, like the code in `_test.go` files in Go. Snapshots show
+it as `definition test`, `reference test` and `forward_definition test`.
+
 ## Running tests
 
 ```bash

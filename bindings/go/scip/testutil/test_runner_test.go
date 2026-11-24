@@ -183,3 +183,79 @@ func TestRunTestsSyntheticAndMultiline(t *testing.T) {
 	require.Contains(t, failOut.String(), "reference local bar 2:2") // expected
 	require.Contains(t, failOut.String(), "reference local bar 2:1") // actual
 }
+
+func TestParseTestCaseTestRoleModifier(t *testing.T) {
+	tc, ok := parseTestCase("// ^^^ definition test local foo", []string{}, "//")
+	require.True(t, ok)
+	require.Equal(t, definitionAttrKind, tc.attribute.kind)
+	require.Equal(t, "local foo", tc.attribute.data)
+	require.True(t, tc.attribute.inTestCode)
+
+	tc, ok = parseTestCase("// ^^^ reference test local bar 2:1", []string{}, "//")
+	require.True(t, ok)
+	require.Equal(t, "local bar", tc.attribute.data)
+	require.True(t, tc.attribute.inTestCode)
+	require.True(t, tc.attribute.hasEndPosition)
+
+	// Without a symbol after it, `test` is the symbol, not a modifier.
+	tc, ok = parseTestCase("// ^ reference test", []string{}, "//")
+	require.True(t, ok)
+	require.Equal(t, "test", tc.attribute.data)
+	require.False(t, tc.attribute.inTestCode)
+
+	// Synthetic definitions do not carry occurrence roles.
+	tc, ok = parseTestCase("// ___ synthetic_definition test local child", []string{}, "//")
+	require.True(t, ok)
+	require.Equal(t, "test local child", tc.attribute.data)
+	require.False(t, tc.attribute.inTestCode)
+}
+
+func TestRunTestsTestRole(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+
+	index := &scip.Index{
+		Documents: []*scip.Document{{
+			RelativePath: "test.txt",
+			Occurrences: []*scip.Occurrence{
+				{
+					Symbol:      "local foo",
+					SymbolRoles: int32(scip.SymbolRole_Definition | scip.SymbolRole_Test),
+					TypedRange:  rangeAt(0, 3, 0, 6).AsTypedRange(),
+				},
+				{
+					Symbol:      "local bar",
+					SymbolRoles: int32(scip.SymbolRole_ReadAccess),
+					TypedRange:  rangeAt(3, 3, 3, 6).AsTypedRange(),
+				},
+			},
+		}},
+	}
+
+	passContent := strings.Join([]string{
+		"   foo",
+		"// ^^^ definition test local foo",
+		// Omitting the modifier does not check the Test role.
+		"// ^^^ definition local foo",
+		"   bar",
+		"// ^^^ reference local bar",
+	}, "\n")
+
+	dir := t.TempDir()
+	testFile := filepath.Join(dir, "test.txt")
+	require.NoError(t, os.WriteFile(testFile, []byte(passContent), 0644))
+
+	var passOut bytes.Buffer
+	require.NoError(t, RunTests(dir, nil, false, index, "//", &passOut))
+	require.Contains(t, passOut.String(), "✓ test.txt (3 assertions)")
+
+	// Asserting the Test role on an occurrence without it must fail, and the
+	// failure shows the modifier the same way `scip snapshot` does.
+	failContent := strings.Replace(passContent,
+		"reference local bar", "reference test local bar", 1)
+	require.NoError(t, os.WriteFile(testFile, []byte(failContent), 0644))
+
+	var failOut bytes.Buffer
+	require.Error(t, RunTests(dir, nil, false, index, "//", &failOut))
+	require.Contains(t, failOut.String(), "Expected: 'reference test local bar'")
+	require.Contains(t, failOut.String(), "Actual:   'reference local bar'")
+}

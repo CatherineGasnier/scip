@@ -1,0 +1,12 @@
+ # Production code: no occurrence has the Test role.
+ definition area().
+#           ^^^^^^^ definition shapes.repro/area().
+#                   documentation
+#                   > signature of area().
+ definition Circle#
+#           ^^^^^^^ definition shapes.repro/Circle#
+#                   documentation
+#                   > signature of Circle#
+ reference area().
+#          ^^^^^^^ reference shapes.repro/area().
+ 
