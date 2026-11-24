@@ -3,6 +3,7 @@ package testutil
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -81,4 +82,71 @@ func TestFormatSnapshotFeatures(t *testing.T) {
 
 	// Zero-width range still renders exactly one marker.
 	require.Contains(t, snapshot, "//  ^ definition local zero")
+}
+
+// TestFormatSnapshotTestRole checks that occurrences with SymbolRole.Test get
+// a `test` modifier after their role, and that other role bits (ReadAccess
+// here) and synthetic definitions are rendered as before.
+func TestFormatSnapshotTestRole(t *testing.T) {
+	source := "func add() {}\nfunc TestAdd() { add() }\nvar _ = add\nfunc helper()\n"
+	dir := t.TempDir()
+	sourcePath := filepath.Join(dir, "add_test.go")
+	require.NoError(t, os.WriteFile(sourcePath, []byte(source), 0644))
+
+	document := &scip.Document{
+		RelativePath: "add_test.go",
+		Occurrences: []*scip.Occurrence{
+			{
+				Symbol:      "local add",
+				SymbolRoles: int32(scip.SymbolRole_Definition),
+				TypedRange:  rangeAt(0, 5, 0, 8).AsTypedRange(),
+			},
+			{
+				Symbol:      "local TestAdd",
+				SymbolRoles: int32(scip.SymbolRole_Definition | scip.SymbolRole_Test),
+				TypedRange:  rangeAt(1, 5, 1, 12).AsTypedRange(),
+			},
+			{
+				Symbol:      "local add",
+				SymbolRoles: int32(scip.SymbolRole_ReadAccess | scip.SymbolRole_Test),
+				TypedRange:  rangeAt(1, 17, 1, 20).AsTypedRange(),
+			},
+			{
+				Symbol:      "local add",
+				SymbolRoles: int32(scip.SymbolRole_ReadAccess),
+				TypedRange:  rangeAt(2, 8, 2, 11).AsTypedRange(),
+			},
+			{
+				Symbol:      "local helper",
+				SymbolRoles: int32(scip.SymbolRole_ForwardDefinition | scip.SymbolRole_Test),
+				TypedRange:  rangeAt(3, 5, 3, 11).AsTypedRange(),
+			},
+		},
+		Symbols: []*scip.SymbolInformation{
+			{
+				// Synthetic definitions do not inherit the Test role of the
+				// definition they are rendered under.
+				Symbol:        "local child",
+				Relationships: []*scip.Relationship{{Symbol: "local TestAdd", IsDefinition: true}},
+			},
+		},
+	}
+
+	snapshot, err := FormatSnapshot(document, "//", scip.DescriptorOnlyFormatter, sourcePath)
+	require.NoError(t, err)
+	require.Equal(t, strings.Join([]string{
+		"  func add() {}",
+		"//     ^^^ definition local add",
+		"  func TestAdd() { add() }",
+		"//     ^^^^^^^ definition test local TestAdd",
+		"//     _______ synthetic_definition local child",
+		"//             relationship local TestAdd definition",
+		"//                 ^^^ reference test local add",
+		"  var _ = add",
+		"//        ^^^ reference local add",
+		"  func helper()",
+		"//     ^^^^^^ forward_definition test local helper",
+		"  ",
+		"",
+	}, "\n"), snapshot)
 }

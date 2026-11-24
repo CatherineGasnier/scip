@@ -168,6 +168,20 @@ type symbolAttribute struct {
 
 	// endCharacter is the occurrence's end character on its end line.
 	endCharacter int
+
+	// inTestCode is true when the occurrence has the SymbolRole.Test bit.
+	// `scip snapshot` renders it as the `test` modifier after the kind.
+	inTestCode bool
+}
+
+// displayKind renders the attribute's kind for failure messages, followed by
+// the `test` modifier when inTestCode is set, so the output matches the
+// `scip snapshot` representation.
+func (a symbolAttribute) displayKind() string {
+	if a.inTestCode {
+		return string(a.kind) + " " + testRoleModifier
+	}
+	return string(a.kind)
 }
 
 // displayData renders the attribute's data for failure messages, appending the
@@ -189,6 +203,18 @@ const (
 	syntheticDefinitionAttrKind symbolAttributeKind = "synthetic_definition"
 	diagnosticAttrKind          symbolAttributeKind = "diagnostic"
 )
+
+// acceptsTestRoleModifier reports whether attributes of this kind describe an
+// occurrence's own symbol_roles, and so may carry the `test` modifier.
+// Synthetic definitions and diagnostics do not.
+func (k symbolAttributeKind) acceptsTestRoleModifier() bool {
+	switch k {
+	case definitionAttrKind, referenceAttrKind, forwardDefinitionAttrKind:
+		return true
+	default:
+		return false
+	}
+}
 
 func symbolAttributeKindFromStr(str string) symbolAttributeKind {
 	switch str {
@@ -304,7 +330,9 @@ func attributesForOccurrencesAtLine(
 		} else if scip.SymbolRole_ForwardDefinition.Matches(occ) {
 			kind = forwardDefinitionAttrKind
 		}
-		result = append(result, attributeForRange(pos, renderedLine, kind, occ.Symbol))
+		occAttr := attributeForRange(pos, renderedLine, kind, occ.Symbol)
+		occAttr.inTestCode = scip.SymbolRole_Test.Matches(occ)
+		result = append(result, occAttr)
 
 		for _, diagnostic := range occ.Diagnostics {
 			diag := attributeForRange(pos, renderedLine, diagnosticAttrKind, diagnostic.Severity.String())
@@ -439,8 +467,10 @@ func parseTestCase(line string, leadingLines []string, commentSyntax string) (sy
 		panic(fmt.Sprintf("'_' range marker is only valid for synthetic_definition, got %q", kindStr))
 	}
 
-	// the data is everything after the type, minus any multiline suffix
+	// the data is everything after the type, minus any `test` modifier and
+	// multiline suffix
 	data := strings.TrimSpace(strings.TrimPrefix(content, kindStr))
+	data, inTestCode := parseTestRoleModifier(kind, data)
 	data, endLineDelta, endCharacter, hasEndPosition := parseMultilineSuffix(data)
 
 	additionalData := []string{}
@@ -474,9 +504,25 @@ func parseTestCase(line string, leadingLines []string, commentSyntax string) (sy
 			hasEndPosition: hasEndPosition,
 			endLineDelta:   endLineDelta,
 			endCharacter:   endCharacter,
+			inTestCode:     inTestCode,
 		},
 		enforceLength: sel.enforceLength,
 	}, true
+}
+
+// parseTestRoleModifier splits a leading `test` modifier off of the test data,
+// as written by `scip snapshot` for occurrences with the SymbolRole.Test bit,
+// e.g. `definition test <symbol>`. The modifier is only recognized for kinds
+// that accept it, and only when a symbol follows it.
+func parseTestRoleModifier(kind symbolAttributeKind, data string) (rest string, inTestCode bool) {
+	if !kind.acceptsTestRoleModifier() {
+		return data, false
+	}
+	fields := strings.Fields(data)
+	if len(fields) < 2 || fields[0] != testRoleModifier {
+		return data, false
+	}
+	return strings.TrimSpace(strings.TrimPrefix(data, testRoleModifier)), true
 }
 
 func (s symbolAttributeTestCase) checkAll(attributes []symbolAttribute) bool {
@@ -500,6 +546,13 @@ func (s symbolAttributeTestCase) check(attr symbolAttribute) bool {
 	}
 
 	if s.attribute.kind != attr.kind {
+		return false
+	}
+
+	// The `test` modifier is only checked when the test case specifies it, like
+	// the multiline suffix below, so existing assertions keep passing when an
+	// indexer starts setting SymbolRole.Test.
+	if s.attribute.inTestCode && !attr.inTestCode {
 		return false
 	}
 
@@ -544,7 +597,7 @@ func (s symbolAttributeTestCase) check(attr symbolAttribute) bool {
 func formatFailure(lineNumber int, testCase symbolAttributeTestCase, attributesAtLine []symbolAttribute) string {
 	failureDesc := []string{
 		fmt.Sprintf("Failure [Ln: %d, Col: %d]", lineNumber+1, testCase.attribute.start),
-		fmt.Sprintf("  Expected: '%s %s'", testCase.attribute.kind, testCase.attribute.displayData()),
+		fmt.Sprintf("  Expected: '%s %s'", testCase.attribute.displayKind(), testCase.attribute.displayData()),
 	}
 	for _, add := range testCase.attribute.additionalData {
 		failureDesc = append(failureDesc, indent(fmt.Sprintf("'%s'", add), 12))
@@ -565,7 +618,7 @@ func formatFailure(lineNumber int, testCase symbolAttributeTestCase, attributesA
 				prefix += "  "
 			}
 
-			failureDesc = append(failureDesc, fmt.Sprintf("  %s '%s %s'", prefix, attr.kind, attr.displayData()))
+			failureDesc = append(failureDesc, fmt.Sprintf("  %s '%s %s'", prefix, attr.displayKind(), attr.displayData()))
 			for _, add := range attr.additionalData {
 				failureDesc = append(failureDesc, indent(fmt.Sprintf("'%s'", add), 12))
 			}

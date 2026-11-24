@@ -61,6 +61,14 @@ func TestSCIPTests(t *testing.T) {
         Actual: <no attributes found>
 `),
 		},
+		{"test-role",
+			autogold.Expect("✓ passes_test.repro (3 assertions)\n"),
+			autogold.Expect(`✗ fails-not-test-code.repro
+    Failure [Ln: 1, Col: 11]
+      Expected: 'definition test reprolang repro_manager test-role 1.0.0 fails-not-test-code.repro/hello().'
+      Actual:   'definition reprolang repro_manager test-role 1.0.0 fails-not-test-code.repro/hello().'
+`),
+		},
 		{"diagnostics",
 			autogold.Expect("✓ passes.repro (2 assertions)\n"),
 			autogold.Expect(`✗ fails-incorrect-diagnostic.repro

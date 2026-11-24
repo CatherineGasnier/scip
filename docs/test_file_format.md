@@ -57,6 +57,24 @@ function someFn() {
 }
 ```
 
+### Test code
+
+`scip snapshot` writes a `test` modifier after the type of an occurrence that
+has the `SymbolRole.Test` role, for example `definition test [symbol]`. Test
+cases may use the same modifier after `definition`, `reference` and
+`forward_definition`. When the modifier is present, the occurrence must have the
+`Test` role. When it is omitted, the `Test` role is not checked, so existing
+test files keep passing when an indexer starts marking test code.
+
+```js
+function testSomeFunction() {
+  //     ^ definition test scip-typescript npm test_package 1.0.0 lib/`test.spec.js`/testSomeFunction().
+
+  someFunction()
+  // <- reference test scip-typescript npm test_package 1.0.0 lib/`test.js`/someFunction().
+}
+```
+
 ### Multiline occurrences
 
 Occurrences whose range spans multiple lines are anchored to their start line.

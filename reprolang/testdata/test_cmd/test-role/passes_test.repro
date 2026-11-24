@@ -1,0 +1,6 @@
+definition helper().
+#          ^ definition test reprolang repro_manager test-role 1.0.0 passes_test.repro/helper().
+reference helper().
+#         ^ reference test reprolang repro_manager test-role 1.0.0 passes_test.repro/helper().
+reference helper().
+#         ^ reference reprolang repro_manager test-role 1.0.0 passes_test.repro/helper().

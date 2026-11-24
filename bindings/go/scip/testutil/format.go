@@ -13,6 +13,14 @@ import (
 	"github.com/scip-code/scip/bindings/go/scip"
 )
 
+// testRoleModifier is written after an occurrence's role (`definition`,
+// `reference` or `forward_definition`) when the occurrence has the
+// SymbolRole.Test bit, for example `^^^ definition test <symbol>`. It is
+// written only when the bit is set, so snapshots of indexes that never set it
+// are unchanged. Other role bits, such as ReadAccess or Import, are not
+// rendered.
+const testRoleModifier = "test"
+
 // FormatSnapshots renders the provided SCIP index into a pretty-printed text format
 // that is suitable for snapshot testing.
 func FormatSnapshots(
@@ -141,6 +149,12 @@ func FormatSnapshot(
 			role = "forward_definition"
 		}
 		b.WriteString(role)
+		// Synthetic definitions are derived from SymbolInformation, not from
+		// occ, so they do not inherit occ's roles.
+		if synthetic == nil && scip.SymbolRole_Test.Matches(occ) {
+			b.WriteString(" ")
+			b.WriteString(testRoleModifier)
+		}
 		b.WriteRune(' ')
 		symbol := occ.Symbol
 		if synthetic != nil {
